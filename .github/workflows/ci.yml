@@ -48,5 +48,10 @@ jobs:
             brew install xcodegen
           fi
 
+      - name: Test shortcut events
+        run: |
+          xcrun swiftc -parse-as-library BlitztextMac/Services/HotkeyService.swift BlitztextMac/Features/Workflows/WorkflowProtocol.swift Tests/HotkeyServiceTests.swift -o /tmp/blitztext-hotkey-tests
+          /tmp/blitztext-hotkey-tests
+
       - name: Build
         run: ./build.sh --debug

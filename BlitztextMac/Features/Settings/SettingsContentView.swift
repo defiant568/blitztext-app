@@ -598,6 +598,15 @@ struct CustomizeSettingsView: View {
                 SectionLabel(text: "Tastenk\u{00FC}rzel")
 
                 VStack(spacing: 6) {
+                    HStack {
+                        Text("F5")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 124, alignment: .leading)
+                        Text(appState.displayName(for: .transcription))
+                            .font(.system(size: 11.5, weight: .medium))
+                        Spacer()
+                    }
                     ForEach(WorkflowType.mainMenuCases) { type in
                         HStack {
                             Text(type.hotkeyLabel)
@@ -609,6 +618,13 @@ struct CustomizeSettingsView: View {
                             Spacer()
                         }
                     }
+                }
+
+                if let error = appState.hotkeyService.f5RegistrationError {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // Mode picker
