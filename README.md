@@ -66,6 +66,11 @@ brew install xcodegen
 
 ## Build And Run
 
+This version adds **F5** as a second dictation shortcut alongside **Fn + Shift**.
+For Logitech MX Keys, use **Fn + Esc** to switch to direct F1-F12 access.
+See the [F5 and Logitech guide (Deutsch)](docs/f5-shortcut.md) for setup on a
+second Mac, recording modes, and Apple microphone-key differences.
+
 ```bash
 git clone https://github.com/cmagnussen/blitztext-app.git
 cd blitztext-app

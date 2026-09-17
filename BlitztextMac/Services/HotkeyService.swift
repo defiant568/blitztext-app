@@ -1,4 +1,5 @@
 import Cocoa
+import Carbon
 import Observation
 
 enum HotkeyMode: String, Codable, CaseIterable, Identifiable {
@@ -35,18 +36,30 @@ final class HotkeyService {
     private var localMonitor: Any?
     private var keyMonitor: Any?
     private var activeCombo: WorkflowType?  // Which combo is currently held
+    private var f5HotKey: EventHotKeyRef?
+    private var f5Handler: EventHandlerRef?
+    private var isF5Down = false
+    private var f5Triggered = false
+
+    private(set) var f5RegistrationError: String?
 
     var onHotkeyEvent: ((HotkeyEvent) -> Void)?
 
     func start() {
+        stop()
+        registerF5()
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             Task { @MainActor in
                 self?.handleFlags(event)
             }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
             Task { @MainActor in
-                self?.handleFlags(event)
+                if event.type == .flagsChanged {
+                    self?.handleFlags(event)
+                } else if event.keyCode == 53 {
+                    self?.handleEscape()
+                }
             }
             return event
         }
@@ -67,10 +80,81 @@ final class HotkeyService {
         globalMonitor = nil
         localMonitor = nil
         keyMonitor = nil
+        if let f5HotKey { UnregisterEventHotKey(f5HotKey) }
+        if let f5Handler { RemoveEventHandler(f5Handler) }
+        f5HotKey = nil
+        f5Handler = nil
+        activeCombo = nil
+        isF5Down = false
+        f5Triggered = false
+        f5RegistrationError = nil
+    }
+
+    private func registerF5() {
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        ]
+        let handlerStatus = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, context in
+                guard let event, let context else { return OSStatus(eventNotHandledErr) }
+                var identifier = EventHotKeyID()
+                let status = GetEventParameter(
+                    event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                    nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier
+                )
+                guard status == noErr, identifier.signature == 0x42545854, identifier.id == 5 else {
+                    return OSStatus(eventNotHandledErr)
+                }
+                let service = Unmanaged<HotkeyService>.fromOpaque(context).takeUnretainedValue()
+                // Application event handlers run on the main thread.
+                MainActor.assumeIsolated {
+                    service.handleF5(isDown: GetEventKind(event) == UInt32(kEventHotKeyPressed))
+                }
+                return noErr
+            },
+            eventTypes.count, &eventTypes,
+            Unmanaged.passUnretained(self).toOpaque(), &f5Handler
+        )
+        guard handlerStatus == noErr else {
+            f5RegistrationError = "F5 konnte nicht aktiviert werden (\(handlerStatus))."
+            return
+        }
+        let status = RegisterEventHotKey(
+            UInt32(kVK_F5), 0, EventHotKeyID(signature: 0x42545854, id: 5),
+            GetApplicationEventTarget(), OptionBits(kEventHotKeyExclusive), &f5HotKey
+        )
+        if status != noErr {
+            f5RegistrationError = "F5 ist nicht verfügbar, möglicherweise bereits belegt (\(status))."
+            if let f5Handler { RemoveEventHandler(f5Handler) }
+            f5Handler = nil
+        }
+    }
+
+    func handleF5(isDown: Bool) {
+        if isDown {
+            guard !isF5Down else { return }
+            isF5Down = true
+            guard activeCombo == nil else { return }
+            f5Triggered = true
+            onHotkeyEvent?(.down(.transcription))
+        } else {
+            isF5Down = false
+            guard f5Triggered else { return }
+            f5Triggered = false
+            onHotkeyEvent?(.up(.transcription))
+        }
     }
 
     private func handleFlags(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        handleModifiers(flags)
+    }
+
+    func handleModifiers(_ flags: NSEvent.ModifierFlags) {
+        // F5 owns its press/release pair even when modifiers change while it is held.
+        guard !f5Triggered else { return }
 
         // fn + Shift + Control -> local transcription
         if flags == [.function, .shift, .control] {
@@ -124,8 +208,9 @@ final class HotkeyService {
         }
     }
 
-    private func handleEscape() {
+    func handleEscape() {
         activeCombo = nil
+        f5Triggered = false
         onHotkeyEvent?(.cancel)
     }
 }
