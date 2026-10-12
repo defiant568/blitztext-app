@@ -15,12 +15,19 @@ final class DampfAblassenWorkflow: Workflow {
     private let recorder = AudioRecorder()
     private let settings: DampfAblassenSettings
     private let customTerms: [String]
+    private let replacements: [TermReplacement]
     private let language: String
     private var processingTask: Task<Void, Never>?
 
-    init(settings: DampfAblassenSettings, customTerms: [String] = [], language: String = "de") {
+    init(
+        settings: DampfAblassenSettings,
+        customTerms: [String] = [],
+        replacements: [TermReplacement] = [],
+        language: String = "de"
+    ) {
         self.settings = settings
         self.customTerms = customTerms
+        self.replacements = replacements
         self.language = language
     }
 
@@ -103,7 +110,7 @@ final class DampfAblassenWorkflow: Workflow {
                     text: cleanedRawText,
                     systemPrompt: settings.systemPrompt
                 )
-                let cleanedAnswer = TranscriptionQualityService.cleanedTranscript(answer)
+                let cleanedAnswer = TranscriptionQualityService.cleanedTranscript(answer, replacements: replacements)
                 guard cleanedAnswer != "KEINE_AUFNAHME_ERKANNT" else {
                     phase = .error("Keine Aufnahme erkannt.")
                     return

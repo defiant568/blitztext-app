@@ -15,12 +15,19 @@ final class EmojiTextWorkflow: Workflow {
     private let recorder = AudioRecorder()
     private let settings: EmojiTextSettings
     private let customTerms: [String]
+    private let replacements: [TermReplacement]
     private let language: String
     private var processingTask: Task<Void, Never>?
 
-    init(settings: EmojiTextSettings, customTerms: [String] = [], language: String = "de") {
+    init(
+        settings: EmojiTextSettings,
+        customTerms: [String] = [],
+        replacements: [TermReplacement] = [],
+        language: String = "de"
+    ) {
         self.settings = settings
         self.customTerms = customTerms
+        self.replacements = replacements
         self.language = language
     }
 
@@ -103,7 +110,7 @@ final class EmojiTextWorkflow: Workflow {
                     text: cleanedRawText,
                     settings: settings
                 )
-                let cleanedResult = TranscriptionQualityService.cleanedTranscript(result)
+                let cleanedResult = TranscriptionQualityService.cleanedTranscript(result, replacements: replacements)
                 guard cleanedResult != "KEINE_AUFNAHME_ERKANNT" else {
                     phase = .error("Keine Aufnahme erkannt.")
                     return

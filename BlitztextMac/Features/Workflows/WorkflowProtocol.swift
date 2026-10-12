@@ -171,6 +171,45 @@ enum TranscriptionBackend: String, Codable {
 
 struct TranscriptionSettings: Codable {
     var language: String = "de"
+    var replacements: [TermReplacement] = []
+
+    init(language: String = "de", replacements: [TermReplacement] = []) {
+        self.language = language
+        self.replacements = replacements
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        language = try container.decodeIfPresent(String.self, forKey: .language) ?? "de"
+        replacements = try container.decodeIfPresent([TermReplacement].self, forKey: .replacements) ?? []
+    }
+}
+
+/// Fixed correction "heard → meant", applied to the final text of every workflow.
+struct TermReplacement: Codable, Hashable, Identifiable {
+    var from: String
+    var to: String
+
+    var id: String { from.lowercased() }
+
+    /// Replaces whole words only, ignoring case, so "Claude" does not touch "Claudes".
+    static func apply(_ replacements: [TermReplacement], to text: String) -> String {
+        replacements.reduce(text) { result, replacement in
+            let from = replacement.from.trimmingCharacters(in: .whitespaces)
+            guard !from.isEmpty,
+                  let regex = try? NSRegularExpression(
+                    pattern: "(?<![\\p{L}\\p{N}])\(NSRegularExpression.escapedPattern(for: from))(?![\\p{L}\\p{N}])",
+                    options: [.caseInsensitive]
+                  ) else {
+                return result
+            }
+            return regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: NSRegularExpression.escapedTemplate(for: replacement.to)
+            )
+        }
+    }
 }
 
 struct DampfAblassenSettings: Codable {

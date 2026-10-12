@@ -21,6 +21,7 @@ final class TranscriptionWorkflow: Workflow {
 
     private let recorder = AudioRecorder()
     private let customTerms: [String]
+    private let replacements: [TermReplacement]
     private let language: String
     private let backend: TranscriptionBackend
     private let localModelName: String
@@ -29,12 +30,14 @@ final class TranscriptionWorkflow: Workflow {
     init(
         type: WorkflowType = .transcription,
         customTerms: [String] = [],
+        replacements: [TermReplacement] = [],
         language: String = "de",
         backend: TranscriptionBackend = .remote,
         localModelName: String = LocalTranscriptionService.recommendedFastModelName
     ) {
         self.type = type
         self.customTerms = customTerms
+        self.replacements = replacements
         self.language = language
         self.backend = backend
         self.localModelName = localModelName
@@ -107,13 +110,14 @@ final class TranscriptionWorkflow: Workflow {
                     text = try await LocalTranscriptionService.shared.transcribe(
                         audioURL: url,
                         language: requestLanguage,
-                        modelName: localModelName
+                        modelName: localModelName,
+                        customTerms: vocabularyHints
                     )
                 }
                 try Task.checkCancellation()
 
                 let responseReceivedAt = Date()
-                let cleaned = TranscriptionQualityService.cleanedTranscript(text)
+                let cleaned = TranscriptionQualityService.cleanedTranscript(text, replacements: replacements)
                 guard !TranscriptionQualityService.isLikelyArtifact(cleaned, recordingDuration: recordingDuration) else {
                     transcriptionLogger.info(
                         "Transcription rejected short artifact after \(elapsedMilliseconds(since: stopTime)) ms"

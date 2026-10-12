@@ -165,6 +165,7 @@ final class AppState {
         case .transcription:
             let workflow = TranscriptionWorkflow(
                 customTerms: textImprovementSettings.customTerms,
+                replacements: transcriptionSettings.replacements,
                 language: transcriptionSettings.language,
                 backend: appSettings.secureLocalModeEnabled ? .local : .remote,
                 localModelName: selectedLocalModelName
@@ -177,6 +178,7 @@ final class AppState {
             let workflow = TranscriptionWorkflow(
                 type: .localTranscription,
                 customTerms: textImprovementSettings.customTerms,
+                replacements: transcriptionSettings.replacements,
                 language: transcriptionSettings.language,
                 backend: .local,
                 localModelName: selectedLocalModelName
@@ -188,6 +190,7 @@ final class AppState {
         case .textImprover:
             let workflow = TextImprovementWorkflow(
                 settings: textImprovementSettings,
+                replacements: transcriptionSettings.replacements,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)
@@ -198,6 +201,7 @@ final class AppState {
             let workflow = DampfAblassenWorkflow(
                 settings: dampfAblassenSettings,
                 customTerms: textImprovementSettings.customTerms,
+                replacements: transcriptionSettings.replacements,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)
@@ -208,6 +212,7 @@ final class AppState {
             let workflow = EmojiTextWorkflow(
                 settings: emojiTextSettings,
                 customTerms: textImprovementSettings.customTerms,
+                replacements: transcriptionSettings.replacements,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)

@@ -513,6 +513,8 @@ struct AccessSettingsView: View {
 struct CustomizeSettingsView: View {
     @Bindable var appState: AppState
     @State private var newTerm = ""
+    @State private var newReplacementFrom = ""
+    @State private var newReplacementTo = ""
 
     private var installedLocalModels: [LocalTranscriptionModel] {
         LocalTranscriptionService.installedModels()
@@ -590,6 +592,115 @@ struct CustomizeSettingsView: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            // MARK: Woerterbuch
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "W\u{00F6}rterbuch")
+
+                Text("Begriffe gehen als Hinweis an die Erkennung (lokal und online). Ersetzungen korrigieren danach feste Fehler.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Term chips
+                if !appState.textImprovementSettings.customTerms.isEmpty {
+                    FlowLayout(spacing: 5) {
+                        ForEach(appState.textImprovementSettings.customTerms, id: \.self) { term in
+                            HStack(spacing: 3) {
+                                Text(term)
+                                    .font(.system(size: 10.5))
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.15)) {
+                                        appState.textImprovementSettings.customTerms.removeAll { $0 == term }
+                                    }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 7, weight: .bold))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .buttonStyle(SubtleButtonStyle())
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.primary.opacity(0.04), lineWidth: 0.5)
+                            )
+                        }
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    TextField("Neuer Begriff", text: $newTerm)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+                        .onSubmit { addTerm() }
+
+                    Button { addTerm() } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.blue.opacity(0.7))
+                    }
+                    .buttonStyle(SubtleButtonStyle())
+                    .disabled(newTerm.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                // Replacements
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Ersetzungen")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(appState.transcriptionSettings.replacements) { replacement in
+                        HStack(spacing: 6) {
+                            Text(replacement.from)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                            Text(replacement.to)
+                                .font(.system(size: 11, weight: .medium))
+                            Spacer()
+                            Button {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    appState.transcriptionSettings.replacements.removeAll { $0.id == replacement.id }
+                                }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(SubtleButtonStyle())
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        TextField("Erkannt", text: $newReplacementFrom)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        TextField("Gemeint", text: $newReplacementTo)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                            .onSubmit { addReplacement() }
+
+                        Button { addReplacement() } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.blue.opacity(0.7))
+                        }
+                        .buttonStyle(SubtleButtonStyle())
+                        .disabled(!canAddReplacement)
+                    }
                 }
             }
 
@@ -743,59 +854,6 @@ struct CustomizeSettingsView: View {
                     .pickerStyle(.segmented)
                 }
             }
-
-            // MARK: Eigennamen
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Eigennamen")
-
-                // Term chips
-                if !appState.textImprovementSettings.customTerms.isEmpty {
-                    FlowLayout(spacing: 5) {
-                        ForEach(appState.textImprovementSettings.customTerms, id: \.self) { term in
-                            HStack(spacing: 3) {
-                                Text(term)
-                                    .font(.system(size: 10.5))
-                                Button {
-                                    withAnimation(.easeOut(duration: 0.15)) {
-                                        appState.textImprovementSettings.customTerms.removeAll { $0 == term }
-                                    }
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 7, weight: .bold))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .buttonStyle(SubtleButtonStyle())
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(Color.primary.opacity(0.04), lineWidth: 0.5)
-                            )
-                        }
-                    }
-                }
-
-                HStack(spacing: 6) {
-                    TextField("Neuer Begriff", text: $newTerm)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11))
-                        .onSubmit { addTerm() }
-
-                    Button { addTerm() } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.blue.opacity(0.7))
-                    }
-                    .buttonStyle(SubtleButtonStyle())
-                    .disabled(newTerm.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-
         }
         .padding(16)
     }
@@ -807,6 +865,25 @@ struct CustomizeSettingsView: View {
             appState.textImprovementSettings.customTerms.append(trimmed)
         }
         newTerm = ""
+    }
+
+    private var canAddReplacement: Bool {
+        !newReplacementFrom.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !newReplacementTo.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func addReplacement() {
+        guard canAddReplacement else { return }
+        let replacement = TermReplacement(
+            from: newReplacementFrom.trimmingCharacters(in: .whitespaces),
+            to: newReplacementTo.trimmingCharacters(in: .whitespaces)
+        )
+        withAnimation(.easeOut(duration: 0.15)) {
+            appState.transcriptionSettings.replacements.removeAll { $0.id == replacement.id }
+            appState.transcriptionSettings.replacements.append(replacement)
+        }
+        newReplacementFrom = ""
+        newReplacementTo = ""
     }
 }
 

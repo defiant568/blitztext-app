@@ -53,5 +53,10 @@ jobs:
           xcrun swiftc -parse-as-library BlitztextMac/Services/HotkeyService.swift BlitztextMac/Features/Workflows/WorkflowProtocol.swift Tests/HotkeyServiceTests.swift -o /tmp/blitztext-hotkey-tests
           /tmp/blitztext-hotkey-tests
 
+      - name: Test vocabulary replacements
+        run: |
+          xcrun swiftc -parse-as-library BlitztextMac/Features/Workflows/WorkflowProtocol.swift Tests/TermReplacementTests.swift -o /tmp/blitztext-replacement-tests
+          /tmp/blitztext-replacement-tests
+
       - name: Build
         run: ./build.sh --debug

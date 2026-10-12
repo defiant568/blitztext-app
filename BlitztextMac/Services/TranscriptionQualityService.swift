@@ -7,8 +7,8 @@ enum TranscriptionQualityService {
         duration < minimumRecordingDuration
     }
 
-    static func cleanedTranscript(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    static func cleanedTranscript(_ text: String, replacements: [TermReplacement] = []) -> String {
+        TermReplacement.apply(replacements, to: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func isLikelyArtifact(_ text: String, recordingDuration: TimeInterval) -> Bool {

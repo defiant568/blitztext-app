@@ -14,11 +14,17 @@ final class TextImprovementWorkflow: Workflow {
 
     private let recorder = AudioRecorder()
     private let settings: TextImprovementSettings
+    private let replacements: [TermReplacement]
     private let language: String
     private var processingTask: Task<Void, Never>?
 
-    init(settings: TextImprovementSettings, language: String = "de") {
+    init(
+        settings: TextImprovementSettings,
+        replacements: [TermReplacement] = [],
+        language: String = "de"
+    ) {
         self.settings = settings
+        self.replacements = replacements
         self.language = language
     }
 
@@ -102,7 +108,7 @@ final class TextImprovementWorkflow: Workflow {
                     settings: settings
                 )
 
-                let cleanedImproved = TranscriptionQualityService.cleanedTranscript(improved)
+                let cleanedImproved = TranscriptionQualityService.cleanedTranscript(improved, replacements: replacements)
                 phase = .done(cleanedImproved)
                 onOutput?(cleanedImproved)
             } catch {

@@ -30,7 +30,7 @@ struct LocalTranscriptionModel: Identifiable, Hashable {
         if id.contains("tiny") {
             return "Whisper Tiny"
         }
-        if id.contains("turbo") {
+        if id.contains("turbo") || id.contains("v20240930") {
             return "Whisper Turbo"
         }
         if id.contains("large-v3") {
@@ -49,11 +49,14 @@ struct LocalTranscriptionModel: Identifiable, Hashable {
         if modelName.contains("tiny") {
             return "Whisper Tiny"
         }
-        if modelName.contains("turbo") {
+        if modelName.contains("v20240930_turbo") {
             return "Whisper Large v3 Turbo"
         }
+        if modelName.contains("v20240930") {
+            return "Whisper Large v3 Turbo (kompakt)"
+        }
         if modelName.contains("large-v3") {
-            return "Whisper Large v3"
+            return "Whisper Large v3 (genau)"
         }
         return modelName
             .replacingOccurrences(of: "openai_", with: "")
@@ -85,11 +88,13 @@ actor LocalTranscriptionService {
     static let defaultModelName = "openai_whisper-large-v3-v20240930_626MB"
     static let fastModelName = "openai_whisper-large-v3-v20240930_turbo_632MB"
     static let recommendedFastModelName = "openai_whisper-small_216MB"
+    static let accurateModelName = "openai_whisper-large-v3_947MB"
     static let modelRepo = "argmaxinc/whisperkit-coreml"
     static let supportedModelNames = [
         recommendedFastModelName,
         fastModelName,
-        defaultModelName
+        defaultModelName,
+        accurateModelName
     ]
     static let modelPageURL = URL(
         string: "https://huggingface.co/argmaxinc/whisperkit-coreml/tree/main/openai_whisper-large-v3-v20240930_626MB"
@@ -255,14 +260,20 @@ actor LocalTranscriptionService {
         }
     }
 
-    func transcribe(audioURL: URL, language: String, modelName: String) async throws -> String {
+    func transcribe(
+        audioURL: URL,
+        language: String,
+        modelName: String,
+        customTerms: [String] = []
+    ) async throws -> String {
         let resolvedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pipeline = try await pipeline(modelName: modelName)
         let decodeOptions = DecodingOptions(
             task: .transcribe,
-            language: resolvedLanguage.isEmpty ? nil : resolvedLanguage
+            language: resolvedLanguage.isEmpty ? nil : resolvedLanguage,
+            promptTokens: Self.promptTokens(for: customTerms, tokenizer: pipeline.tokenizer)
         )
 
-        let pipeline = try await pipeline(modelName: modelName)
         let results = try await pipeline.transcribe(
             audioPath: audioURL.path,
             decodeOptions: decodeOptions
@@ -277,6 +288,17 @@ actor LocalTranscriptionService {
         }
 
         return text
+    }
+
+    /// Same hint as the online request: Whisper treats the prompt as preceding text
+    /// and prefers these spellings. Capped well below Whisper's 224-token prompt window.
+    private static func promptTokens(for customTerms: [String], tokenizer: WhisperTokenizer?) -> [Int]? {
+        guard !customTerms.isEmpty, let tokenizer else { return nil }
+
+        let prompt = " Eigennamen und Begriffe: \(customTerms.joined(separator: ", "))."
+        let tokens = tokenizer.encode(text: prompt)
+            .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        return tokens.isEmpty ? nil : Array(tokens.suffix(180))
     }
 
     private func pipeline(modelName: String) async throws -> WhisperKit {
