@@ -21,6 +21,12 @@ enum AppSupportPaths {
         localModelsDirectoryURL.appendingPathComponent("whisperkit", isDirectory: true)
     }
 
+    /// Tokenizers live next to the models; WhisperKit's default (~/Documents/huggingface)
+    /// needs a separate Documents permission that a rebuilt app loses.
+    static var whisperKitTokenizersDirectoryURL: URL {
+        localModelsDirectoryURL.appendingPathComponent("tokenizers", isDirectory: true)
+    }
+
     static var defaultWhisperKitModelURL: URL {
         whisperKitModelsDirectoryURL.appendingPathComponent(
             "openai_whisper-large-v3-v20240930_626MB",

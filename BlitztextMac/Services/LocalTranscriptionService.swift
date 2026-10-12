@@ -30,7 +30,7 @@ struct LocalTranscriptionModel: Identifiable, Hashable {
         if id.contains("tiny") {
             return "Whisper Tiny"
         }
-        if id.contains("turbo") || id.contains("v20240930") {
+        if id.contains("v20240930") {
             return "Whisper Turbo"
         }
         if id.contains("large-v3") {
@@ -50,13 +50,13 @@ struct LocalTranscriptionModel: Identifiable, Hashable {
             return "Whisper Tiny"
         }
         if modelName.contains("v20240930_turbo") {
-            return "Whisper Large v3 Turbo"
+            return "Whisper Turbo (schnell)"
         }
         if modelName.contains("v20240930") {
-            return "Whisper Large v3 Turbo (kompakt)"
+            return "Whisper Turbo kompakt (schnell)"
         }
         if modelName.contains("large-v3") {
-            return "Whisper Large v3 (genau)"
+            return "Whisper Large v3 – genau"
         }
         return modelName
             .replacingOccurrences(of: "openai_", with: "")
@@ -121,6 +121,9 @@ actor LocalTranscriptionService {
 
     private var whisperKit: WhisperKit?
     private var loadedModelName: String?
+    /// Models that returned no text when given prompt tokens (WhisperKit early-exit bug,
+    /// argmaxinc/argmax-oss-swift#372). Their hints are skipped until the next launch.
+    private var modelsWithBrokenPrompt: Set<String> = []
 
     static var isModelInstalled: Bool {
         isModelInstalled(defaultModelName)
@@ -267,27 +270,55 @@ actor LocalTranscriptionService {
         customTerms: [String] = []
     ) async throws -> String {
         let resolvedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedModelName = Self.resolvedModelName(modelName)
         let pipeline = try await pipeline(modelName: modelName)
-        let decodeOptions = DecodingOptions(
-            task: .transcribe,
-            language: resolvedLanguage.isEmpty ? nil : resolvedLanguage,
-            promptTokens: Self.promptTokens(for: customTerms, tokenizer: pipeline.tokenizer)
+        let promptTokens = modelsWithBrokenPrompt.contains(resolvedModelName)
+            ? nil
+            : Self.promptTokens(for: customTerms, tokenizer: pipeline.tokenizer)
+
+        var text = try await Self.transcribe(
+            audioURL: audioURL,
+            language: resolvedLanguage,
+            promptTokens: promptTokens,
+            pipeline: pipeline
         )
 
-        let results = try await pipeline.transcribe(
-            audioPath: audioURL.path,
-            decodeOptions: decodeOptions
-        )
-        let text = results
-            .map(\.text)
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty, promptTokens != nil {
+            modelsWithBrokenPrompt.insert(resolvedModelName)
+            text = try await Self.transcribe(
+                audioURL: audioURL,
+                language: resolvedLanguage,
+                promptTokens: nil,
+                pipeline: pipeline
+            )
+        }
 
         guard !text.isEmpty else {
             throw LocalTranscriptionError.noText
         }
 
         return text
+    }
+
+    private static func transcribe(
+        audioURL: URL,
+        language: String,
+        promptTokens: [Int]?,
+        pipeline: WhisperKit
+    ) async throws -> String {
+        let decodeOptions = DecodingOptions(
+            task: .transcribe,
+            language: language.isEmpty ? nil : language,
+            promptTokens: promptTokens
+        )
+        let results = try await pipeline.transcribe(
+            audioPath: audioURL.path,
+            decodeOptions: decodeOptions
+        )
+        return results
+            .map(\.text)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Same hint as the online request: Whisper treats the prompt as preceding text
@@ -312,8 +343,13 @@ actor LocalTranscriptionService {
             throw LocalTranscriptionError.modelMissing(url)
         }
 
+        try FileManager.default.createDirectory(
+            at: AppSupportPaths.whisperKitTokenizersDirectoryURL,
+            withIntermediateDirectories: true
+        )
         let loaded = try await WhisperKit(
             modelFolder: url.path,
+            tokenizerFolder: AppSupportPaths.whisperKitTokenizersDirectoryURL,
             verbose: false,
             prewarm: true,
             load: true,
